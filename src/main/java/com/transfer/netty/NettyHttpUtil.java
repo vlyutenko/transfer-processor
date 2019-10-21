@@ -40,7 +40,8 @@ public class NettyHttpUtil {
         context.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
 
-    public static void send200Ok(ChannelHandlerContext context, ByteBuf result) {
+    public static void send200Ok(ChannelHandlerContext context, String message) {
+        ByteBuf result = Unpooled.wrappedBuffer(message.getBytes());
         FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, result);
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json");
         response.headers().set(HttpHeaderNames.CONTENT_LENGTH, result.readableBytes());
@@ -66,12 +67,7 @@ public class NettyHttpUtil {
         return (JSONObject) parser.parse(payload);
     }
 
-    static Optional<String> extractGetRequestParameter(Map<String, List<String>> parameters, String parameterName) {
-        List<String> account = parameters.get(parameterName);
-        if (account == null) {
-            return Optional.empty();
-        } else {
-            return Optional.of(account.get(0));
-        }
+    static String extractGetRequestParameter(Map<String, List<String>> parameters, String parameterName) {
+        return parameters.get(parameterName).get(0);
     }
 }

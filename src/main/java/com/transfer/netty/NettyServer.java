@@ -1,5 +1,6 @@
 package com.transfer.netty;
 
+import com.transfer.core.AccountOperationsEventProcessor;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
@@ -12,29 +13,26 @@ import io.netty.handler.timeout.IdleStateHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
 import java.net.InetSocketAddress;
 
-@Singleton
 public class NettyServer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(NettyServer.class);
     private static final int BYTES_IN_MEGABYTE = 1048576;
     private static final int MAX_FRAME_LENGTH = 4 * BYTES_IN_MEGABYTE;
 
-    private final ServerBootstrap bootstrap;
-    private final InetSocketAddress tcpPort;
+
     private final NioEventLoopGroup bossGroup = new NioEventLoopGroup(1);
     private final NioEventLoopGroup workerGroup = new NioEventLoopGroup(3);
+    private final FlowExceptionInboundHandler flowExceptionInboundHandler;
+    private final ApplicationInboundHandler applicationInboundHandler;
+    private final ServerBootstrap bootstrap;
 
     private volatile Channel serverChannel;
 
-    @Inject
-    public NettyServer(InetSocketAddress tcpPort,
-                       ApplicationInboundHandler applicationInboundHandler,
-                       FlowExceptionInboundHandler flowExceptionInboundHandler) {
-        this.tcpPort = tcpPort;
+    public NettyServer(AccountOperationsEventProcessor accountOperationsEventProcessor) {
+        this.applicationInboundHandler = new ApplicationInboundHandler(accountOperationsEventProcessor);
+        this.flowExceptionInboundHandler = new FlowExceptionInboundHandler();
         this.bootstrap = new ServerBootstrap();
 
         bootstrap.group(bossGroup, workerGroup)
@@ -54,8 +52,8 @@ public class NettyServer {
     }
 
     public void start() throws Exception {
-        LOGGER.info("Starting http server at " + tcpPort);
-        serverChannel = bootstrap.bind(tcpPort).sync().channel();
+        LOGGER.info("Starting http server");
+        serverChannel = bootstrap.bind( new InetSocketAddress(80)).sync().channel();
     }
 
     public void stop() {

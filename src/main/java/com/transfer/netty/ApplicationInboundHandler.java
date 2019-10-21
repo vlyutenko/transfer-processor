@@ -1,8 +1,9 @@
 package com.transfer.netty;
 
 
-import com.transfer.core.AccountOperationsProcessor;
-import io.netty.buffer.Unpooled;
+import com.transfer.core.AccountEvent;
+import com.transfer.core.AccountOperationsEventProcessor;
+import com.transfer.core.EventType;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -13,18 +14,14 @@ import io.netty.util.CharsetUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.function.Consumer;
 
 import static com.transfer.netty.NettyHttpUtil.*;
 import static io.netty.handler.codec.http.HttpMethod.GET;
 import static io.netty.handler.codec.http.HttpMethod.POST;
 
-@Singleton
 @ChannelHandler.Sharable
 public class ApplicationInboundHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
@@ -39,12 +36,11 @@ public class ApplicationInboundHandler extends SimpleChannelInboundHandler<FullH
     static final String ACCOUNT_TO_REQUEST_PARAMETER = "toAccount";
     static final String AMOUNT_REQUEST_PARAMETER = "amount";
 
-    private final AccountOperationsProcessor accountOperationsProcessor;
+    private final AccountOperationsEventProcessor accountOperationsEventProcessor;
 
-    @Inject
-    public ApplicationInboundHandler(AccountOperationsProcessor accountOperationsProcessor) {
+    public ApplicationInboundHandler(AccountOperationsEventProcessor accountOperationsEventProcessor) {
         super(true);
-        this.accountOperationsProcessor = accountOperationsProcessor;
+        this.accountOperationsEventProcessor = accountOperationsEventProcessor;
     }
 
     @Override
@@ -69,61 +65,71 @@ public class ApplicationInboundHandler extends SimpleChannelInboundHandler<FullH
         }
     }
 
-    private void handlePost(ChannelHandlerContext channelHandlerContext,
+    private void handlePost(ChannelHandlerContext ctx,
                             String payload,
                             String uri) throws Exception {
-        Map parameters;
+        AccountEvent event;
         switch (uri) {
             case TRANSFER_REQUEST:
-                parameters = extractPostRequestBody(payload);
-                accountOperationsProcessor.processTransfer(
-                        UUID.fromString((String) parameters.get(ACCOUNT_FROM_REQUEST_PARAMETER)),
-                        UUID.fromString((String) parameters.get(ACCOUNT_TO_REQUEST_PARAMETER)),
-                        (Long) parameters.get(AMOUNT_REQUEST_PARAMETER),
-                        successHandler(channelHandlerContext),
-                        errorHandler(channelHandlerContext));
+                event = accountOperationsEventProcessor.nextEvent();
+                setupTransferEvent(event, payload, ctx);
+                accountOperationsEventProcessor.publishEvent(event.sequence);
                 break;
             case ACCOUNT_CREATE_REQUEST:
-                parameters = extractPostRequestBody(payload);
-                accountOperationsProcessor.processCreate(
-                        (Long) parameters.get(AMOUNT_REQUEST_PARAMETER),
-                        successHandler(channelHandlerContext),
-                        errorHandler(channelHandlerContext));
+                event = accountOperationsEventProcessor.nextEvent();
+                setupCreateEvent(event, payload, ctx);
+                accountOperationsEventProcessor.publishEvent(event.sequence);
                 break;
             default:
                 LOGGER.warn("Not valid operation: {}", uri);
-                send404NotFound(channelHandlerContext);
+                send404NotFound(ctx);
                 break;
         }
     }
 
-    private void handleGet(ChannelHandlerContext channelHandlerContext,
+    private void handleGet(ChannelHandlerContext ctx,
                            Map<String, List<String>> parameters,
-                           String uri) {
-        if (ACCOUNT_INFO_REQUEST.equals(uri)) {
-            extractGetRequestParameter(parameters, ACCOUNT_REQUEST_PARAMETER)
-                    .ifPresentOrElse(account -> accountOperationsProcessor.processInfo(
-                            UUID.fromString(account),
-                            successHandler(channelHandlerContext),
-                            errorHandler(channelHandlerContext)),
-                            () -> send400BadRequest(channelHandlerContext, "Invalid request account parameter"));
-        } else {
-            LOGGER.warn("Not valid operation: {}", uri);
-            send404NotFound(channelHandlerContext);
+                           String uri) throws Exception {
+
+        AccountEvent event;
+        switch (uri) {
+            case ACCOUNT_INFO_REQUEST:
+                event = accountOperationsEventProcessor.nextEvent();
+                setupInfoEvent(event, extractGetRequestParameter(parameters, ACCOUNT_REQUEST_PARAMETER), ctx);
+                accountOperationsEventProcessor.publishEvent(event.sequence);
+                break;
+            default:
+                LOGGER.warn("Not valid operation: {}", uri);
+                send404NotFound(ctx);
+                break;
         }
     }
 
-    /**
-     * TODO:
-     * lambda captures outside values and instance is create every time
-     * could be omitted see branch https://github.com/vlyutenko/transfer-processor/tree/singleton_lambda
-     * but downside is that processor will be tightly coupled with transport
-     */
-    private Consumer<String> successHandler(ChannelHandlerContext ctx) {
-        return s -> send200Ok(ctx, Unpooled.wrappedBuffer(s.getBytes()));
+    private void setupTransferEvent(AccountEvent event, String payload, ChannelHandlerContext ctx) throws Exception {
+        Map parameters = extractPostRequestBody(payload);
+        event.eventType = EventType.TRANSFER;
+        event.ctx = ctx;
+        event.accountFrom = UUID.fromString((String) parameters.get(ACCOUNT_FROM_REQUEST_PARAMETER));
+        event.accountTo = UUID.fromString((String) parameters.get(ACCOUNT_TO_REQUEST_PARAMETER));
+        event.amount = (Long) parameters.get(AMOUNT_REQUEST_PARAMETER);
+        event.resultConsumer = NettyHttpUtil::send200Ok;
+        event.errorConsumer = NettyHttpUtil::send500InternalServerError;
     }
 
-    private Consumer<Throwable> errorHandler(ChannelHandlerContext ctx) {
-        return th -> send500InternalServerError(ctx, th);
+    private void setupCreateEvent(AccountEvent event, String payload, ChannelHandlerContext ctx) throws Exception {
+        Map parameters = extractPostRequestBody(payload);
+        event.eventType = EventType.CREATE;
+        event.ctx = ctx;
+        event.amount = (Long) parameters.get(AMOUNT_REQUEST_PARAMETER);
+        event.resultConsumer = NettyHttpUtil::send200Ok;
+        event.errorConsumer = NettyHttpUtil::send500InternalServerError;
+    }
+
+    private void setupInfoEvent(AccountEvent event, String account, ChannelHandlerContext ctx) throws Exception {
+        event.eventType = EventType.INFO;
+        event.ctx = ctx;
+        event.accountFrom = UUID.fromString(account);
+        event.resultConsumer = NettyHttpUtil::send200Ok;
+        event.errorConsumer = NettyHttpUtil::send500InternalServerError;
     }
 }

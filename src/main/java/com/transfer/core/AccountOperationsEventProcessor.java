@@ -2,81 +2,38 @@ package com.transfer.core;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.lmax.disruptor.BusySpinWaitStrategy;
+import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
 import gnu.trove.map.hash.TObjectLongHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
 import java.util.UUID;
-import java.util.function.Consumer;
 
-@Singleton
-public class AccountOperationsProcessor implements AutoCloseable {
-    private static final Logger LOGGER = LoggerFactory.getLogger(AccountOperationsProcessor.class);
+public class AccountOperationsEventProcessor implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(AccountOperationsEventProcessor.class);
 
     private final Disruptor<AccountEvent> disruptor;
     private final TObjectLongHashMap<UUID> storage;
+    private final RingBuffer<AccountEvent> ringBuffer;
 
-    @Inject
-    public AccountOperationsProcessor() {
+    public AccountOperationsEventProcessor() {
         this.disruptor = new Disruptor<>(AccountEvent::new, 256, new ThreadFactoryBuilder().setNameFormat("disruptor.executor-%d").build(), ProducerType.MULTI, new BusySpinWaitStrategy());
         this.storage = new TObjectLongHashMap<>(10, 0.5f, -1);
-    }
-
-    public void start() {
-        LOGGER.info("Starting disruptor");
         this.disruptor.handleEventsWith(this::handleEvent);
-        this.disruptor.start();
+        this.ringBuffer = this.disruptor.start();
     }
 
-    @Override
-    public void close() {
-        disruptor.shutdown();
+    public AccountEvent nextEvent() {
+        long sequence = ringBuffer.next();
+        AccountEvent event = ringBuffer.get(sequence);
+        event.sequence = sequence;
+        return event;
     }
 
-    private enum EventType {
-        CREATE, INFO, TRANSFER
-    }
-
-    private static final class AccountEvent {
-        private UUID accountFrom;
-        private UUID accountTo;
-        private long amount;
-        private EventType eventType;
-        private Consumer<String> resultConsumer;
-        private Consumer<Throwable> errorConsumer;
-    }
-
-    public void processCreate(long amount, Consumer<String> resultConsumer, Consumer<Throwable> errorConsumer) {
-        disruptor.publishEvent((event, sequence) -> {
-            event.eventType = EventType.CREATE;
-            event.amount = amount;
-            event.resultConsumer = resultConsumer;
-            event.errorConsumer = errorConsumer;
-        });
-    }
-
-    public void processInfo(UUID account, Consumer<String> resultConsumer, Consumer<Throwable> errorConsumer) {
-        disruptor.publishEvent((event, sequence) -> {
-            event.eventType = EventType.INFO;
-            event.accountFrom = account;
-            event.resultConsumer = resultConsumer;
-            event.errorConsumer = errorConsumer;
-        });
-    }
-
-    public void processTransfer(UUID accountFrom, UUID accountTo, long amount, Consumer<String> resultConsumer, Consumer<Throwable> errorConsumer) {
-        disruptor.publishEvent((event, sequence) -> {
-            event.eventType = EventType.TRANSFER;
-            event.accountFrom = accountFrom;
-            event.accountTo = accountTo;
-            event.amount = amount;
-            event.resultConsumer = resultConsumer;
-            event.errorConsumer = errorConsumer;
-        });
+    public void publishEvent(long eventSequence) {
+        this.ringBuffer.publish(eventSequence);
     }
 
     private void handleEvent(AccountEvent event, long sequence, boolean endOfBatch) {
@@ -96,14 +53,14 @@ public class AccountOperationsProcessor implements AutoCloseable {
                     break;
                 }
                 default: {
-                    event.errorConsumer.accept(new IllegalArgumentException("Not supported operation"));
+                    event.errorConsumer.accept(event.ctx, new IllegalArgumentException("Not supported operation"));
                     return;
                 }
             }
-            event.resultConsumer.accept(response);
+            event.resultConsumer.accept(event.ctx, response);
         } catch (Exception ex) {
             LOGGER.error("Problems during event processing", ex);
-            event.errorConsumer.accept(ex);
+            event.errorConsumer.accept(event.ctx, ex);
         }
     }
 
@@ -160,5 +117,10 @@ public class AccountOperationsProcessor implements AutoCloseable {
 
         LOGGER.info("{} account created with amount {}", uuid, amount);
         return String.format("{\"account\":\"%s\" }", uuid.toString());
+    }
+
+    @Override
+    public void close() {
+        disruptor.shutdown();
     }
 }

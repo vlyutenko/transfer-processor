@@ -1,12 +1,11 @@
 package com.transfer.netty;
 
-import com.transfer.core.AccountOperationsProcessor;
+import com.transfer.core.AccountOperationsEventProcessor;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
 import org.awaitility.Duration;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 
@@ -17,21 +16,10 @@ import static org.awaitility.Awaitility.await;
 
 public class NettyTransportTest {
 
-    private ApplicationInboundHandler applicationInboundHandler;
-    private FlowExceptionInboundHandler flowExceptionInboundHandler;
-
-    @BeforeClass
-    public void init() {
-        AccountOperationsProcessor accountOperationsProcessor = new AccountOperationsProcessor();
-        accountOperationsProcessor.start();
-        this.applicationInboundHandler = new ApplicationInboundHandler(accountOperationsProcessor);
-        this.flowExceptionInboundHandler = new FlowExceptionInboundHandler();
-    }
-
     @Test
     public void shouldCreateAccount() {
         //Given
-        EmbeddedChannel channel = new EmbeddedChannel(applicationInboundHandler);
+        EmbeddedChannel channel = new EmbeddedChannel(new ApplicationInboundHandler(new AccountOperationsEventProcessor()), new FlowExceptionInboundHandler());
 
         //When
         String payload = "{\"" + ApplicationInboundHandler.AMOUNT_REQUEST_PARAMETER + "\": 2000}";
@@ -52,7 +40,7 @@ public class NettyTransportTest {
     @Test
     public void shouldNotCreateAccountWithNegativeAmount() {
         //Given
-        EmbeddedChannel channel = new EmbeddedChannel(applicationInboundHandler);
+        EmbeddedChannel channel = new EmbeddedChannel(new ApplicationInboundHandler(new AccountOperationsEventProcessor()), new FlowExceptionInboundHandler());
 
         //When
         String payload = "{\"" + ApplicationInboundHandler.AMOUNT_REQUEST_PARAMETER + "\": -2000}";
@@ -73,7 +61,7 @@ public class NettyTransportTest {
     @Test
     public void shouldNotCreateAccountWithWrongAmount() {
         //Given
-        EmbeddedChannel channel = new EmbeddedChannel(applicationInboundHandler, flowExceptionInboundHandler);
+        EmbeddedChannel channel = new EmbeddedChannel(new ApplicationInboundHandler(new AccountOperationsEventProcessor()), new FlowExceptionInboundHandler());
 
         //When
         String payload = "{\"" + ApplicationInboundHandler.AMOUNT_REQUEST_PARAMETER + "\": XXX}";
@@ -94,7 +82,7 @@ public class NettyTransportTest {
     @Test
     public void shouldNotCreateAccountWithMissedAmount() {
         //Given
-        EmbeddedChannel channel = new EmbeddedChannel(applicationInboundHandler, flowExceptionInboundHandler);
+        EmbeddedChannel channel = new EmbeddedChannel(new ApplicationInboundHandler(new AccountOperationsEventProcessor()), new FlowExceptionInboundHandler());
 
         //When
         String payload = "{\"XXX\": XXX}";
@@ -114,8 +102,10 @@ public class NettyTransportTest {
 
     @Test
     public void shouldCreateAccountAndGetInfo() {
+        ApplicationInboundHandler applicationInboundHandler = new ApplicationInboundHandler(new AccountOperationsEventProcessor());
+        FlowExceptionInboundHandler flowExceptionInboundHandler = new FlowExceptionInboundHandler();
         //Given
-        EmbeddedChannel channelCreate = new EmbeddedChannel(applicationInboundHandler);
+        EmbeddedChannel channelCreate = new EmbeddedChannel(applicationInboundHandler, flowExceptionInboundHandler);
 
         //When
         String payload = "{\"" + ApplicationInboundHandler.AMOUNT_REQUEST_PARAMETER + "\": 2000}";
@@ -153,7 +143,7 @@ public class NettyTransportTest {
     @Test
     public void shouldNotReturnInfoWithWrongAccount() {
         //Given
-        EmbeddedChannel channel = new EmbeddedChannel(applicationInboundHandler, flowExceptionInboundHandler);
+        EmbeddedChannel channel = new EmbeddedChannel(new ApplicationInboundHandler(new AccountOperationsEventProcessor()), new FlowExceptionInboundHandler());
 
         //When
         String uuid = "xxx";
@@ -174,7 +164,7 @@ public class NettyTransportTest {
     @Test
     public void shouldNotReturnInfoWithNotPresentAccount() {
         //Given
-        EmbeddedChannel channel = new EmbeddedChannel(applicationInboundHandler, flowExceptionInboundHandler);
+        EmbeddedChannel channel = new EmbeddedChannel(new ApplicationInboundHandler(new AccountOperationsEventProcessor()), new FlowExceptionInboundHandler());
 
         //When
         String uuid = "1473b088-f333-11e9-a713-2a2ae2dbcce4";
@@ -195,7 +185,7 @@ public class NettyTransportTest {
     @Test
     public void shouldNotReturnInfoWithMissedAccount() {
         //Given
-        EmbeddedChannel channel = new EmbeddedChannel(applicationInboundHandler, flowExceptionInboundHandler);
+        EmbeddedChannel channel = new EmbeddedChannel(new ApplicationInboundHandler(new AccountOperationsEventProcessor()), new FlowExceptionInboundHandler());
 
         //When
         FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, ApplicationInboundHandler.ACCOUNT_INFO_REQUEST);
@@ -208,14 +198,17 @@ public class NettyTransportTest {
                 .ignoreExceptions()
                 .untilAsserted(() -> {
                     DefaultFullHttpResponse res = channel.readOutbound();
-                    assertThat(res.status().code()).isEqualTo(400);
+                    assertThat(res.status().code()).isEqualTo(500);
                 });
     }
 
     @Test
     public void shouldTransferCorrect() {
         //Given
-        EmbeddedChannel channelCreateFrom = new EmbeddedChannel(applicationInboundHandler);
+        ApplicationInboundHandler applicationInboundHandler = new ApplicationInboundHandler(new AccountOperationsEventProcessor());
+        FlowExceptionInboundHandler flowExceptionInboundHandler = new FlowExceptionInboundHandler();
+
+        EmbeddedChannel channelCreateFrom = new EmbeddedChannel(applicationInboundHandler, flowExceptionInboundHandler);
 
         //When
         String payload = "{\"" + ApplicationInboundHandler.AMOUNT_REQUEST_PARAMETER + "\": 2000}";
@@ -234,7 +227,7 @@ public class NettyTransportTest {
                     uuidFrom.set((String) NettyHttpUtil.extractPostRequestBody(res.content().toString(CharsetUtil.UTF_8)).get(ApplicationInboundHandler.ACCOUNT_REQUEST_PARAMETER));
                 });
 
-        EmbeddedChannel channelCreateTo = new EmbeddedChannel(applicationInboundHandler);
+        EmbeddedChannel channelCreateTo = new EmbeddedChannel(applicationInboundHandler, flowExceptionInboundHandler);
         httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, ApplicationInboundHandler.ACCOUNT_CREATE_REQUEST, Unpooled.wrappedBuffer(payload.getBytes()));
         channelCreateTo.writeInbound(httpRequest);
         AtomicReference<String> uuidTo = new AtomicReference<>();
@@ -274,16 +267,16 @@ public class NettyTransportTest {
         String payload = "{\"" + ApplicationInboundHandler.ACCOUNT_FROM_REQUEST_PARAMETER + "\":\"" + uuidFrom + "\"," +
                 "\"" + ApplicationInboundHandler.ACCOUNT_TO_REQUEST_PARAMETER + "\":\"" + uuidTo + "\"," +
                 "\"" + ApplicationInboundHandler.AMOUNT_REQUEST_PARAMETER + "\": 100}";
-        EmbeddedChannel channelTransfer = new EmbeddedChannel(applicationInboundHandler);
+        EmbeddedChannel channel = new EmbeddedChannel(new ApplicationInboundHandler(new AccountOperationsEventProcessor()), new FlowExceptionInboundHandler());
         FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, ApplicationInboundHandler.TRANSFER_REQUEST, Unpooled.wrappedBuffer(payload.getBytes()));
-        channelTransfer.writeInbound(httpRequest);
+        channel.writeInbound(httpRequest);
 
         await()
                 .atMost(Duration.FIVE_SECONDS)
                 .pollInterval(Duration.ONE_MILLISECOND)
                 .ignoreExceptions()
                 .untilAsserted(() -> {
-                    DefaultFullHttpResponse res = channelTransfer.readOutbound();
+                    DefaultFullHttpResponse res = channel.readOutbound();
                     assertThat(res.status().code()).isEqualTo(500);
                 });
     }
@@ -291,7 +284,10 @@ public class NettyTransportTest {
     @Test
     public void shouldNotTransferIfNotEnoughAmount() {
         //Given
-        EmbeddedChannel channelCreateFrom = new EmbeddedChannel(applicationInboundHandler);
+        ApplicationInboundHandler applicationInboundHandler = new ApplicationInboundHandler(new AccountOperationsEventProcessor());
+        FlowExceptionInboundHandler flowExceptionInboundHandler = new FlowExceptionInboundHandler();
+
+        EmbeddedChannel channelCreateFrom = new EmbeddedChannel(applicationInboundHandler, flowExceptionInboundHandler);
 
         //When
         String payload = "{\"" + ApplicationInboundHandler.AMOUNT_REQUEST_PARAMETER + "\": 2000}";
@@ -310,7 +306,7 @@ public class NettyTransportTest {
                     uuidFrom.set((String) NettyHttpUtil.extractPostRequestBody(res.content().toString(CharsetUtil.UTF_8)).get(ApplicationInboundHandler.ACCOUNT_REQUEST_PARAMETER));
                 });
 
-        EmbeddedChannel channelCreateTo = new EmbeddedChannel(applicationInboundHandler);
+        EmbeddedChannel channelCreateTo = new EmbeddedChannel(applicationInboundHandler, flowExceptionInboundHandler);
         httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, ApplicationInboundHandler.ACCOUNT_CREATE_REQUEST, Unpooled.wrappedBuffer(payload.getBytes()));
         channelCreateTo.writeInbound(httpRequest);
         AtomicReference<String> uuidTo = new AtomicReference<>();
@@ -344,7 +340,7 @@ public class NettyTransportTest {
     @Test
     public void shouldNotProccesIncorrectUrls() {
         //Given
-        EmbeddedChannel channel = new EmbeddedChannel(applicationInboundHandler);
+        EmbeddedChannel channel = new EmbeddedChannel(new ApplicationInboundHandler(new AccountOperationsEventProcessor()), new FlowExceptionInboundHandler());
 
         //When
         FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "XXX");
