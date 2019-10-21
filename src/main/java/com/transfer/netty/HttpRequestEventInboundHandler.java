@@ -23,9 +23,9 @@ import static io.netty.handler.codec.http.HttpMethod.GET;
 import static io.netty.handler.codec.http.HttpMethod.POST;
 
 @ChannelHandler.Sharable
-public class ApplicationInboundHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
+public class HttpRequestEventInboundHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ApplicationInboundHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(HttpRequestEventInboundHandler.class);
 
     static final String ACCOUNT_CREATE_REQUEST = "/account/create";
     static final String ACCOUNT_INFO_REQUEST = "/account/info";
@@ -38,7 +38,7 @@ public class ApplicationInboundHandler extends SimpleChannelInboundHandler<FullH
 
     private final AccountOperationsEventProcessor accountOperationsEventProcessor;
 
-    public ApplicationInboundHandler(AccountOperationsEventProcessor accountOperationsEventProcessor) {
+    public HttpRequestEventInboundHandler(AccountOperationsEventProcessor accountOperationsEventProcessor) {
         super(true);
         this.accountOperationsEventProcessor = accountOperationsEventProcessor;
     }

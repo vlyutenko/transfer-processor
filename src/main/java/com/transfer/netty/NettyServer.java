@@ -25,13 +25,13 @@ public class NettyServer {
     private final NioEventLoopGroup bossGroup = new NioEventLoopGroup(1);
     private final NioEventLoopGroup workerGroup = new NioEventLoopGroup(3);
     private final FlowExceptionInboundHandler flowExceptionInboundHandler;
-    private final ApplicationInboundHandler applicationInboundHandler;
+    private final HttpRequestEventInboundHandler httpRequestEventInboundHandler;
     private final ServerBootstrap bootstrap;
 
     private volatile Channel serverChannel;
 
     public NettyServer(AccountOperationsEventProcessor accountOperationsEventProcessor) {
-        this.applicationInboundHandler = new ApplicationInboundHandler(accountOperationsEventProcessor);
+        this.httpRequestEventInboundHandler = new HttpRequestEventInboundHandler(accountOperationsEventProcessor);
         this.flowExceptionInboundHandler = new FlowExceptionInboundHandler();
         this.bootstrap = new ServerBootstrap();
 
@@ -44,7 +44,7 @@ public class NettyServer {
                                 new IdleStateHandler(0, 0, 120),
                                 new HttpServerCodec(),
                                 new HttpObjectAggregator(MAX_FRAME_LENGTH),
-                                applicationInboundHandler,
+                                httpRequestEventInboundHandler,
                                 flowExceptionInboundHandler
                         );
                     }
