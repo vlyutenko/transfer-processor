@@ -23,7 +23,6 @@ import java.util.function.Consumer;
 import static com.transfer.netty.NettyHttpUtil.*;
 import static io.netty.handler.codec.http.HttpMethod.GET;
 import static io.netty.handler.codec.http.HttpMethod.POST;
-import static io.netty.util.ReferenceCountUtil.release;
 
 @Singleton
 @ChannelHandler.Sharable
@@ -114,6 +113,12 @@ public class ApplicationInboundHandler extends SimpleChannelInboundHandler<FullH
         }
     }
 
+    /**
+     * TODO:
+     * lambda captures outside values and instance is create every time
+     * could be omitted see branch https://github.com/vlyutenko/transfer-processor/tree/singleton_lambda
+     * but downside is that processor will be tightly coupled with transport
+     */
     private Consumer<String> successHandler(ChannelHandlerContext ctx) {
         return s -> send200Ok(ctx, Unpooled.wrappedBuffer(s.getBytes()));
     }
