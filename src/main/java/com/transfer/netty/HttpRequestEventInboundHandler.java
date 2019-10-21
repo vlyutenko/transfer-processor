@@ -73,12 +73,12 @@ public class HttpRequestEventInboundHandler extends SimpleChannelInboundHandler<
             case TRANSFER_REQUEST:
                 event = accountOperationsEventProcessor.nextEvent();
                 setupTransferEvent(event, payload, ctx);
-                accountOperationsEventProcessor.publishEvent(event.sequence);
+                accountOperationsEventProcessor.publishEvent(event);
                 break;
             case ACCOUNT_CREATE_REQUEST:
                 event = accountOperationsEventProcessor.nextEvent();
                 setupCreateEvent(event, payload, ctx);
-                accountOperationsEventProcessor.publishEvent(event.sequence);
+                accountOperationsEventProcessor.publishEvent(event);
                 break;
             default:
                 LOGGER.warn("Not valid operation: {}", uri);
@@ -96,7 +96,7 @@ public class HttpRequestEventInboundHandler extends SimpleChannelInboundHandler<
             case ACCOUNT_INFO_REQUEST:
                 event = accountOperationsEventProcessor.nextEvent();
                 setupInfoEvent(event, extractGetRequestParameter(parameters, ACCOUNT_REQUEST_PARAMETER), ctx);
-                accountOperationsEventProcessor.publishEvent(event.sequence);
+                accountOperationsEventProcessor.publishEvent(event);
                 break;
             default:
                 LOGGER.warn("Not valid operation: {}", uri);

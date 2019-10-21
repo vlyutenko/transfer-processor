@@ -32,8 +32,8 @@ public class AccountOperationsEventProcessor implements AutoCloseable {
         return event;
     }
 
-    public void publishEvent(long eventSequence) {
-        this.ringBuffer.publish(eventSequence);
+    public void publishEvent(AccountEvent accountEvent) {
+        this.ringBuffer.publish(accountEvent.sequence);
     }
 
     private void handleEvent(AccountEvent event, long sequence, boolean endOfBatch) {

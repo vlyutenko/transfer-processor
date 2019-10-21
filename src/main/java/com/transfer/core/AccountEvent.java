@@ -6,7 +6,7 @@ import java.util.UUID;
 import java.util.function.BiConsumer;
 
 public class AccountEvent {
-    public long sequence;
+    long sequence;
     public ChannelHandlerContext ctx;
     public UUID accountFrom;
     public UUID accountTo;

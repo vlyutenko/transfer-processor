@@ -30,7 +30,7 @@ public class AccountOperationsEventProcessorTest {
         //Then
         createEvent.errorConsumer = (ctx, th) -> assertThat(th instanceof IllegalArgumentException).isTrue();
         //When
-        accountOperationsEventProcessor.publishEvent(createEvent.sequence);
+        accountOperationsEventProcessor.publishEvent(createEvent);
     }
 
     @Test
@@ -42,7 +42,7 @@ public class AccountOperationsEventProcessorTest {
         //Then
         createEvent.resultConsumer = (ctx, s) -> assertThat(StringUtils.isEmpty(s)).isFalse();
         //When
-        accountOperationsEventProcessor.publishEvent(createEvent.sequence);
+        accountOperationsEventProcessor.publishEvent(createEvent);
     }
 
     @Test
@@ -54,7 +54,7 @@ public class AccountOperationsEventProcessorTest {
         //Then
         infoEvent.errorConsumer = (ctx, th) -> assertThat(th instanceof IllegalArgumentException).isTrue();
         //When
-        accountOperationsEventProcessor.publishEvent(infoEvent.sequence);
+        accountOperationsEventProcessor.publishEvent(infoEvent);
     }
 
     @Test
@@ -66,7 +66,7 @@ public class AccountOperationsEventProcessorTest {
         createEvent.eventType = EventType.CREATE;
         createEvent.amount = 1000;
         createEvent.resultConsumer = (ctx, s) -> payload.set(s);
-        accountOperationsEventProcessor.publishEvent(createEvent.sequence);
+        accountOperationsEventProcessor.publishEvent(createEvent);
 
         await()
                 .atMost(Duration.FIVE_SECONDS)
@@ -84,7 +84,7 @@ public class AccountOperationsEventProcessorTest {
         infoEvent.accountFrom = uuid;
         //Then
         infoEvent.resultConsumer = (ctx, s) -> assertThat(StringUtils.isEmpty(s)).isFalse();
-        accountOperationsEventProcessor.publishEvent(infoEvent.sequence);
+        accountOperationsEventProcessor.publishEvent(infoEvent);
     }
 
     @Test
@@ -101,7 +101,7 @@ public class AccountOperationsEventProcessorTest {
         createEventFrom.eventType = EventType.CREATE;
         createEventFrom.amount = accountFromAmount;
         createEventFrom.resultConsumer = (ctx, s) -> payloadFrom.set(s);
-        accountOperationsEventProcessor.publishEvent(createEventFrom.sequence);
+        accountOperationsEventProcessor.publishEvent(createEventFrom);
 
         await()
                 .atMost(Duration.FIVE_SECONDS)
@@ -119,7 +119,7 @@ public class AccountOperationsEventProcessorTest {
         createEventTo.eventType = EventType.CREATE;
         createEventTo.amount = accountToAmount;
         createEventTo.resultConsumer = (ctx, s) -> payloadTo.set(s);
-        accountOperationsEventProcessor.publishEvent(createEventTo.sequence);
+        accountOperationsEventProcessor.publishEvent(createEventTo);
 
         await()
                 .atMost(Duration.FIVE_SECONDS)
@@ -141,7 +141,7 @@ public class AccountOperationsEventProcessorTest {
         transferEvent.amount = transferAmount;
         transferEvent.resultConsumer = (ctx, s) -> resultTransfer.set(s);
 
-        accountOperationsEventProcessor.publishEvent(transferEvent.sequence);
+        accountOperationsEventProcessor.publishEvent(transferEvent);
 
         await()
                 .atMost(Duration.FIVE_SECONDS)
@@ -164,7 +164,7 @@ public class AccountOperationsEventProcessorTest {
             }
             assertThat(amount).isEqualTo(accountFromAmount - transferAmount);
         };
-        accountOperationsEventProcessor.publishEvent(infoEventFrom.sequence);
+        accountOperationsEventProcessor.publishEvent(infoEventFrom);
 
         AccountEvent infoEventTo = accountOperationsEventProcessor.nextEvent();
         infoEventTo.eventType = EventType.INFO;
@@ -178,6 +178,6 @@ public class AccountOperationsEventProcessorTest {
             }
             assertThat(amount).isEqualTo(accountFromAmount + transferAmount);
         };
-        accountOperationsEventProcessor.publishEvent(infoEventTo.sequence);
+        accountOperationsEventProcessor.publishEvent(infoEventTo);
     }
 }
