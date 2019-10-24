@@ -16,7 +16,7 @@ served in the SAME Disruptor thread.
 Disruptor provides safe publications for events and thats why is thread safe.
 
 So when you publish event from netty threads using disruptor (ringBuffer.publish) 
-it will be transfered to receiver dusruptor with full correctnes in therms of concurrency.
+it will be transfered to receiver dusruptor thread with full correctnes in therms of concurrency.
 
 Also disruptor doesnt use any locks inside, thats why its also very fast and garbage free.
 This framework is heavily use in High-Frequency trading applications.
