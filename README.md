@@ -15,8 +15,13 @@ served in the SAME Disruptor thread.
 
 Disruptor provides safe publications for events and thats why is thread safe.
 
+Furthermore, publishing an event creates a memory barrier to make sure the caches are up to date with this event. 
+It allows adding an event in the ring buffer structure, without any locking which gives us a huge performance improvement.
+
 So when you publish event from netty threads using disruptor (ringBuffer.publish) 
 it will be transfered to receiver dusruptor thread with full correctnes in therms of concurrency.
 
 Also disruptor doesnt use any locks inside, thats why its also very fast and garbage free.
 This framework is heavily use in High-Frequency trading applications.
+
+https://itnext.io/understanding-the-lmax-disruptor-caaaa2721496
