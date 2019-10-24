@@ -2,13 +2,17 @@
 
 Some explanation for my solution:
 
-As http server I used netty so all incoming requests are served by Netty threads,
-then for manage thread-safety I user cycle buffer - Disruptor from LMAX,
-its cycle buffer which wokrs in my situation in multiple producers - single consumer mode;
+As http server I used netty so all incoming requests are served by Netty threads (3 worker threads),
+then for managing thread-safety for data access I use cycle buffer - Disruptor from LMAX.
+This cycle buffer support Multiple producers - Single consumer mode;
 
+So main data storage application receice AccountEvents from multiple netty threads,
+but all these events are handled in one and only one same single thread (Disruptor receiver thread). 
 
-So application get requests from multiple netty threads and submited events to disruptor,
-which handle all events in one and only one single thread, 
+Thats why I use simple (not thread safety map) as a storage because access to this map is always perfromed 
+from the same Disruptor Thread. (I have different types of events like TRANSFER, INFO, ADD but still they are
+served in the SAME Disruptor thread.
 
-thats why I use simple (not thread safety map) as storage because access to this storage is always from one Thread.
-disruptor provides safe publications for events and thats why is thread safe. 
+Disruptor provides safe publications for events and thats why is thread safe.
+Also disruptor doesnt use any locks inside, thats why its also very fast and garbage free.
+This framework is heavily use in High-Frequency trading applications.
