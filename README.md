@@ -25,3 +25,22 @@ Also disruptor doesnt use any locks inside, thats why its also very fast and gar
 This framework is heavily use in High-Frequency trading applications.
 
 https://itnext.io/understanding-the-lmax-disruptor-caaaa2721496
+
+Pros:
+- thread safe
+- very fast network
+- almost zero allocations
+- low gc preasure
+- no lock, no syncronisation
+
+Cons:
+- hard read
+- hard to test
+- hard to maintain
+- hard to extend
+
+Use it only if you really need high load and perfromance.
+I also created more simplified version of this task, which is easy to read and undestand:
+https://github.com/vlyutenko/transfer-processor-simple
+
+
